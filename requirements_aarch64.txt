@@ -14,11 +14,9 @@
 # Use the PyTorch CUDA index as `--index-url` to avoid accidentally getting `torch==...+cpu`.
 #
 # If you need non-PyTorch packages from PyPI, we add PyPI as a *fallback* via `--extra-index-url`.
---index-url https://download.pytorch.org/whl/nightly/cu128
+--index-url https://download.pytorch.org/whl/nightly/cu130
 --extra-index-url https://pypi.org/simple
 
-torch==2.9.0+cu128
-torchaudio==2.9.0+cu128
 transformers[torch]==4.48.2
 datasets==4.4.1
 scikit-learn==1.6.1
@@ -26,8 +24,13 @@ numpy==2.3.4
 librosa
 soundfile
 wandb
-torchcodec==0.9.0.dev20251204
+#
+# TorchCodec is highly coupled to torch nightlies; avoid pinning to an older nightly date.
+# Let pip pick the newest compatible pre-release from the same cu128 nightly index.
+torchcodec
 onnx==1.19.1
 onnxruntime==1.23.2
 onnxscript==0.5.6
-
+torchvision==0.25.0.dev20260122+cu130
+torch==2.11.0.dev20260122
+torchaudio==2.11.0.dev20260122
