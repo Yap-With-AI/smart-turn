@@ -49,6 +49,17 @@ CONFIG = {
 }
 
 
+def ensure_torchcodec_available():
+    """
+    HF `datasets` audio decoding for this project requires `torchcodec` at runtime.
+    Fail fast with a helpful error message if it's missing.
+    """
+    try:
+        import torchcodec  # type: ignore  # noqa: F401
+    except Exception as e:
+        raise RuntimeError("Missing required dependency 'torchcodec'") from e
+
+
 class SmartTurnV3Model(WhisperPreTrainedModel):
     def __init__(self, config: WhisperConfig):
         super().__init__(config)
@@ -369,6 +380,8 @@ class SmartTurnDataCollator:
 
 def prepare_datasets_ondemand(feature_extractor, config):
     log.info("Preparing datasets...")
+
+    ensure_torchcodec_available()
 
     datasets_training = config["datasets_training"]
     datasets_test = config["datasets_test"]
