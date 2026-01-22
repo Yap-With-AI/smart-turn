@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Union, Optional
 
-import modal
 import numpy as np
 import onnxruntime as ort
 import torch
@@ -15,23 +14,6 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import WhisperFeatureExtractor
 
 from datasets import load_dataset, load_from_disk
-
-app = modal.App("endpointing-benchmark")
-volume = modal.Volume.from_name("endpointing", create_if_missing=False)
-
-image = (
-    modal.Image.debian_slim()
-    .pip_install(
-        "numpy==2.3.4",
-        "torch==2.9.0",
-        "datasets==4.4.1",
-        "transformers[torch]==4.48.2",
-        "scikit-learn==1.6.1",
-        "onnxruntime-gpu==1.23.1",
-        "librosa",
-        "soundfile"
-    )
-)
 
 SAMPLING_RATE = 16000
 N_MELS = 80
@@ -723,38 +705,6 @@ def run_accuracy(onnx_path: str, dataset, limit: Optional[int], batch_size: int 
         "unique_datasets": sorted(list(set(datasets_all)))
     }
 
-
-@app.function(
-    image=image,
-    gpu="T4",
-    memory=8192,
-    cpu=6.0,
-    volumes={"/data": volume},
-    timeout=60 * 60,
-)
-def benchmark_modal(onnx_path: str,
-              run_description: Optional[str] = None,
-              dataset_path: Optional[str] = None,
-              limit: Optional[int] = None,
-              perf_runs: int = 100,
-              markdown_output: Optional[str] = None):
-
-    import train
-
-    dataset = load_dataset_at(dataset_path)
-
-    fe = WhisperFeatureExtractor(chunk_length=AUDIO_SECONDS)  # 8 seconds
-    dataset = train.OnDemandSmartTurnDataset(dataset, fe)
-
-    return benchmark(
-        onnx_path=onnx_path,
-        run_description=run_description,
-        dataset=dataset,
-        limit=limit,
-        perf_runs=perf_runs,
-        markdown_output=markdown_output
-    )
-
 def benchmark(onnx_path: str,
               run_description: Optional[str] = None,
               dataset: Optional[Dataset] = None,
@@ -849,14 +799,3 @@ def benchmark(onnx_path: str,
     print(f"Markdown report written to: {markdown_output}")
 
     return results
-
-
-@app.local_entrypoint()
-def main(onnx_path: str,
-         run_description: Optional[str] = None,
-         dataset_path: str = "",
-         limit: Optional[int] = None,
-         perf_runs: int = 100,
-         markdown_output: Optional[str] = None):
-    res = benchmark_modal.remote(onnx_path, run_description, dataset_path if dataset_path else None, limit, perf_runs, markdown_output)
-    print(res)
