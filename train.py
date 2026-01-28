@@ -25,7 +25,7 @@ from transformers.training_args import TrainingArguments
 from audio_utils import truncate_audio_to_last_n_seconds
 from benchmark import benchmark
 from datasets import load_dataset, concatenate_datasets, load_from_disk
-from logger import log, log_model_structure, log_dataset_statistics, log_dependencies, ProgressLoggerCallback
+from logger import log, log_model_structure, log_dataset_statistics, log_dependencies, log_device_info, ProgressLoggerCallback
 
 CONFIG = {
     "base_model_name": "openai/whisper-tiny",
@@ -664,6 +664,7 @@ def final_evaluate(trainer, dataset, split_name):
 
 def do_training_run(run_name: str):
     log_dependencies()
+    log_device_info()
 
     log.info(f"Starting training run: {run_name}")
 

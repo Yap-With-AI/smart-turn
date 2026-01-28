@@ -1,8 +1,10 @@
 import logging
+import os
 import subprocess
 import sys
 from datetime import datetime
 
+import torch
 from torch import nn
 from transformers import TrainerCallback
 
@@ -43,6 +45,104 @@ def log_dependencies():
     log.info("--- END DEPENDENCIES ---")
 
 
+def log_device_info():
+    """Log detailed GPU/device information for debugging."""
+    log.info("--- DEVICE INFORMATION ---")
+
+    # PyTorch version info
+    log.info(f"PyTorch version: {torch.__version__}")
+    log.info(f"PyTorch built with CUDA: {torch.version.cuda}")
+    log.info(f"PyTorch cuDNN version: {torch.backends.cudnn.version() if torch.backends.cudnn.is_available() else 'N/A'}")
+    log.info(f"PyTorch cuDNN enabled: {torch.backends.cudnn.enabled}")
+
+    # CUDA availability
+    cuda_available = torch.cuda.is_available()
+    log.info(f"CUDA available: {cuda_available}")
+
+    if cuda_available:
+        # CUDA runtime version
+        log.info(f"CUDA runtime version: {torch.version.cuda}")
+
+        # Number of GPUs
+        device_count = torch.cuda.device_count()
+        log.info(f"Number of CUDA devices: {device_count}")
+
+        # Current device
+        current_device = torch.cuda.current_device()
+        log.info(f"Current CUDA device index: {current_device}")
+
+        # Details for each GPU
+        for i in range(device_count):
+            props = torch.cuda.get_device_properties(i)
+            log.info(f"GPU {i}: {props.name}")
+            log.info(f"  Compute capability: {props.major}.{props.minor}")
+            log.info(f"  Total memory: {props.total_memory / (1024**3):.2f} GB")
+            log.info(f"  Multi-processor count: {props.multi_processor_count}")
+
+            # Memory info for current device
+            if i == current_device:
+                memory_allocated = torch.cuda.memory_allocated(i) / (1024**3)
+                memory_reserved = torch.cuda.memory_reserved(i) / (1024**3)
+                log.info(f"  Memory allocated: {memory_allocated:.2f} GB")
+                log.info(f"  Memory reserved: {memory_reserved:.2f} GB")
+
+        # Check for TF32 support (Ampere and newer)
+        if hasattr(torch.backends.cuda, 'matmul'):
+            log.info(f"TF32 matmul enabled: {torch.backends.cuda.matmul.allow_tf32}")
+        if hasattr(torch.backends.cudnn, 'allow_tf32'):
+            log.info(f"TF32 cuDNN enabled: {torch.backends.cudnn.allow_tf32}")
+
+        # NCCL availability (for distributed training)
+        nccl_available = torch.distributed.is_nccl_available() if hasattr(torch.distributed, 'is_nccl_available') else False
+        log.info(f"NCCL available: {nccl_available}")
+
+    else:
+        log.warning("CUDA is NOT available - training will run on CPU (this will be very slow)")
+
+    # MPS (Apple Silicon) support
+    mps_available = hasattr(torch.backends, 'mps') and torch.backends.mps.is_available()
+    log.info(f"MPS (Apple Silicon) available: {mps_available}")
+    if mps_available:
+        log.info("  MPS device will be used if CUDA is not available")
+
+    # Relevant environment variables
+    log.info("Relevant environment variables:")
+    env_vars = [
+        "CUDA_VISIBLE_DEVICES",
+        "CUDA_DEVICE_ORDER",
+        "NVIDIA_VISIBLE_DEVICES",
+        "CUDA_HOME",
+        "CUDNN_HOME",
+        "TORCH_CUDA_ARCH_LIST",
+        "PYTORCH_CUDA_ALLOC_CONF",
+        "NCCL_DEBUG",
+        "NCCL_IB_DISABLE",
+        "LOCAL_RANK",
+        "WORLD_SIZE",
+        "RANK",
+    ]
+    for var in env_vars:
+        value = os.environ.get(var)
+        if value is not None:
+            log.info(f"  {var}={value}")
+
+    # Determine effective training device
+    if cuda_available:
+        effective_device = f"cuda:{torch.cuda.current_device()}"
+        device_name = torch.cuda.get_device_name(torch.cuda.current_device())
+        log.info(f">>> Training will use: {effective_device} ({device_name})")
+    elif mps_available:
+        log.info(f">>> Training will use: mps (Apple Silicon GPU)")
+    else:
+        log.info(f">>> Training will use: cpu (WARNING: This will be very slow)")
+
+    # Additional debug info
+    log.info(f"Python executable: {sys.executable}")
+    log.info(f"Python version: {sys.version}")
+
+    log.info("--- END DEVICE INFORMATION ---")
+
+
 def log_model_structure(model, config):
     log.info("--- MODEL STRUCTURE AND DIMENSIONS ---")
 
@@ -70,7 +170,7 @@ def log_model_structure(model, config):
 
     # Log classifier structure
     if hasattr(model, 'classifier'):
-        log.info(f"\nClassifier structure:")
+        log.info(f"Classifier structure:")
         for i, layer in enumerate(model.classifier):
             if isinstance(layer, nn.Linear):
                 log.info(f"  {i} Linear: {layer.in_features} -> {layer.out_features}")
@@ -81,7 +181,7 @@ def log_model_structure(model, config):
 
     # Log attention pooling structure
     if hasattr(model, 'pool_attention'):
-        log.info(f"\nAttention pooling structure:")
+        log.info(f"Attention pooling structure:")
         for i, layer in enumerate(model.pool_attention):
             if isinstance(layer, nn.Linear):
                 log.info(f"  {i} Linear: {layer.in_features} -> {layer.out_features}")
@@ -91,7 +191,7 @@ def log_model_structure(model, config):
     # Log Whisper configuration details
     if hasattr(model, 'config'):
         whisper_config = model.config
-        log.info(f"\nWhisper Configuration:")
+        log.info(f"Whisper Configuration:")
         log.info(f"  Model dimension (d_model): {getattr(whisper_config, 'd_model', 'N/A')}")
         log.info(f"  Encoder layers: {getattr(whisper_config, 'encoder_layers', 'N/A')}")
         log.info(f"  Decoder layers: {getattr(whisper_config, 'decoder_layers', 'N/A')}")
@@ -103,7 +203,7 @@ def log_model_structure(model, config):
 
 def log_dataset_statistics(split_name, dataset):
     """Log detailed statistics about each dataset split - handles both HF datasets and OnDemandWhisperDataset."""
-    log.info(f"\n-- Dataset statistics: {split_name} --")
+    log.info(f"-- Dataset statistics: {split_name} --")
 
     # Basic statistics
     total_samples = len(dataset)
