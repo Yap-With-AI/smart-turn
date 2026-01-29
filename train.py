@@ -662,11 +662,12 @@ def final_evaluate(trainer, dataset, split_name):
     return metrics, predictions
 
 
-def do_training_run(run_name: str):
+def do_training_run(run_name: str, output_dir: str = "./output"):
     log_dependencies()
     log_device_info()
 
     log.info(f"Starting training run: {run_name}")
+    log.info(f"Output directory: {output_dir}")
 
     wandb_api_key = os.environ.get("WANDB_API_KEY")
     if not wandb_api_key:
@@ -688,7 +689,7 @@ def do_training_run(run_name: str):
     datasets = prepare_datasets_ondemand(feature_extractor, CONFIG)
 
     training_args = TrainingArguments(
-        output_dir=f"/data/output/{run_name}",
+        output_dir=f"{output_dir}/{run_name}",
         per_device_train_batch_size=CONFIG["train_batch_size"],
         per_device_eval_batch_size=CONFIG["eval_batch_size"],
         num_train_epochs=CONFIG["num_epochs"],

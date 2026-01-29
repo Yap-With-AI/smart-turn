@@ -16,9 +16,9 @@ from typing import Optional, List
 import train
 
 
-def training_run(run_name: str):
+def training_run(run_name: str, output_dir: str = "./output"):
     """Run the training locally."""
-    return train.do_training_run(run_name=run_name)
+    return train.do_training_run(run_name=run_name, output_dir=output_dir)
 
 
 def quantization_run(fp32_model_path: str):
@@ -43,6 +43,12 @@ def main():
         help="Name for the training run",
     )
     parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="./output",
+        help="Output directory for training artifacts (default: ./output)",
+    )
+    parser.add_argument(
         "--quantize",
         type=str,
         default=None,
@@ -59,7 +65,8 @@ def main():
 
     if args.training_run_name is not None:
         print(f"Starting training run: {args.training_run_name}")
-        training_run(run_name=args.training_run_name)
+        print(f"Output directory: {args.output_dir}")
+        training_run(run_name=args.training_run_name, output_dir=args.output_dir)
 
     if args.quantize is not None:
         print(f"Starting quantization for: {args.quantize}")

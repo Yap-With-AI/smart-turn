@@ -48,7 +48,7 @@ image = (
 )
 def training_run(run_name: str):
     import train
-    return train.do_training_run(run_name=run_name)
+    return train.do_training_run(run_name=run_name, output_dir="/data/output")
 
 
 @app.function(
